@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 
+'''Html Article - 网页正文提取程序
+
+   本程序通过分析网页中的html代码，通过统计字符个数判断正文位置并提取正文。输出内容仍然为html代码。
+   
+   本程序依赖第三方模块BeautifulSoup，此模块的安装方法请参考如下地址：
+   http://www.crummy.com/software/BeautifulSoup/bs4/doc/
+
+   程序运行方法：
+   1、将此文件放到任意目录，例如~/bin，确保文件有执行权限，如果没有，请用 chmod u+x htmlarticle.py 添加执行权限
+   2、确保文件所在目录位于环境变量PATH中
+   3、调用方法举例：htmlarticle.py http://www.example.com/12345.html
+   4、运行htmlarticle.py -h查看更多帮助信息
+'''
+
 import re, sys, urllib.request, getopt, html, mimetypes, os.path, urllib.parse, base64
 from bs4 import BeautifulSoup
 
@@ -76,13 +90,13 @@ def usage():
 
     s = '''Html Article - 网页正文提取程序
 
-分析网页中的html代码，通过统计字符个数判断正文位置并提取正文。正文仍然为html代码。
+分析网页中的html代码，通过统计字符个数判断正文位置并提取正文。输出内容仍然为html代码。
 
 调用方式：
-    htmlarticle.py [-u <ua> | -m] [-c <cookie>] [--rows <n>] [--chars <n>] [-i] [-t] [-s] <url>
-    htmlarticle.py [-u <ua> | -m] [-c <cookie>] [-i] [-t] [-s] [-n] <url>
-    cat html.txt | htmlarticle.py [--rows <n>] [--chars <n>] [-i] [-t] [s]
-    cat html.txt | htmlarticle.py [-i] [-t] [s] [-n]
+    htmlarticle.py [-u <ua> | -m] [-c <cookie>] [--rows <n>] [--chars <n>] [-i] [-t] [-s] [-p] <url>
+    htmlarticle.py [-u <ua> | -m] [-c <cookie>] [-i] [-t] [-s] [-n] [-p] <url>
+    cat html.txt | htmlarticle.py [--rows <n>] [--chars <n>] [-i] [-t] [-s] [-p]
+    cat html.txt | htmlarticle.py [-i] [-t] [-s] [-n] [-p]
     htmlarticle.py -h
 
 参数说明：
@@ -95,6 +109,7 @@ def usage():
     -t,--title              在正文顶部添加文章标题
     -s,--source             在正文顶部添加网页来源（对于从stdin读取的html无效）
     -n                      不使用统计字数的方式确定正文位置
+    -p,--prettify           将输出的html代码进行格式化以方便阅读代码
     -h, --help              显示帮助
     [url]                   网页url
 
@@ -108,7 +123,7 @@ def usage():
 class Article:
 
     def __init__(self, *, html = "", url = "", rows = 0, chars = 0, useragent = "", cookie = "", 
-            iimage = True, noCharsStat = False, withTitle = True, withSource = True):
+            iimage = True, noCharsStat = False, withTitle = True, withSource = True, prettify = False):
         ''' 因为参数较多，未避免输入出错，因此全部参数均为keyword argument
 
             参数说明：
@@ -123,6 +138,7 @@ class Article:
                 noCharsStat 如果为True表示不使用字符数统计方式确定正文 
                 withTitle   是否在输出的正文中添加标题
                 withSource  是否在输出的正文中添加原文地址
+                prettify    是否将输出的html代码进行格式化以方便阅读代码
 
             调用方式举例：
 
@@ -161,6 +177,7 @@ class Article:
         self.__noCharsStat  = noCharsStat
         self.__withTitle    = withTitle
         self.__withSource   = withSource
+        self.__prettify     = prettify
         self.__soap         = None  # BeautifulSoup对象
         self.__base         = ""    # 保存html base字段
         self.__title        = ""    # 保存网页标题
@@ -299,7 +316,7 @@ class Article:
         self.__body = str(body)
 
 
-    def article(self, *, iimage = None, noCharsStat = None, withTitle = None, withSource = None):
+    def article(self, *, iimage = None, noCharsStat = None, withTitle = None, withSource = None, prettify = None):
         ''' 生成正文内容，返回html代码
             
             参数说明（所有参数均为keyword argument）：
@@ -322,6 +339,8 @@ class Article:
             withTitle = self.__withTitle
         if withSource is None:
             withSource = self.__withSource
+        if prettify is None:
+            prettify = self.__prettify
 
         # 进行字数统计
         if noCharsStat is False:
@@ -373,6 +392,10 @@ class Article:
 
         htmlstring = """<!DOCTYPE html><html><head><meta charset="utf-8" />{}<title>{}</title></head><body>{}{}</body></html>""".format(base, self.__title, head, htmlstring)
 
+
+        if prettify:
+            htmlstring = BeautifulSoup(htmlstring).prettify()
+
         return htmlstring
 
 
@@ -391,12 +414,13 @@ if __name__ == '__main__':
     withTitle = False
     withSource = False
     noCharsStat = False
-    htmlstring = ""            
+    prettify = False
+    htmlstring = ""
     url = ""
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "u:c:mitsnh", 
-                ["useragent=", "cookie=", "mobile", "rows=", "chars=", "inline", "title", "source", "help"])
+        opts, args = getopt.getopt(sys.argv[1:], "u:c:mitsnph", 
+                ["useragent=", "cookie=", "mobile", "rows=", "chars=", "inline", "title", "source", "prettify", "help"])
 
         for i, j in opts:
             if i in ["-h", "--help"]:
@@ -427,6 +451,8 @@ if __name__ == '__main__':
                 withSource = True
             elif i == "-n":
                 noCharsStat = True
+            elif i in ["-p", "--prettify"]:
+                prettify = True
         
         if useragent == "":
             useragent = defaultUseragent
@@ -441,8 +467,9 @@ if __name__ == '__main__':
                 enc = sys.getdefaultencoding()
                 sys.exit("stdin输入的字符编码方式并不是 {}，请转为 {} 编码方式后再运行程序".format(enc, enc))
 
-        article = Article(html = htmlstring, url = url, rows = rows, chars = chars, useragent = useragent, 
-                cookie = cookie, iimage = inline, noCharsStat = noCharsStat, withTitle = withTitle, withSource = withSource)
+        article = Article(html = htmlstring, url = url, rows = rows, chars = chars, 
+                useragent = useragent, cookie = cookie, iimage = inline, noCharsStat = noCharsStat, 
+                withTitle = withTitle, withSource = withSource, prettify = prettify)
         
         # 从参数读取url，抓取网页
         if len(args) > 0:
