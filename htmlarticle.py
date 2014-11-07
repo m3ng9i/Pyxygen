@@ -93,25 +93,23 @@ def usage():
 分析网页中的html代码，通过统计字符个数判断正文位置并提取正文。输出内容仍然为html代码。
 
 调用方式：
-    htmlarticle.py [-u <ua> | -m] [-c <cookie>] [--rows <n>] [--chars <n>] [-i] [-t] [-s] [-p] <url>
-    htmlarticle.py [-u <ua> | -m] [-c <cookie>] [-i] [-t] [-s] [-n] [-p] <url>
-    cat html.txt | htmlarticle.py [--rows <n>] [--chars <n>] [-i] [-t] [-s] [-p]
-    cat html.txt | htmlarticle.py [-i] [-t] [-s] [-n] [-p]
+    htmlarticle.py [选项]... <url>
     htmlarticle.py -h
+    cat example.htm | htmlarticle.py [选项]...
 
 参数说明：
-    -u,--useragent <ua>     设置 user agent（不可与-m参数同时使用）
-    -m,--mobile             模拟移动设备访问网页（不可与-u参数同时使用）
-    -c,--cookie <cookie>    设置 cookie
-    --rows <n>              设置统计字数的行数，默认为10，表示统计当前行及上下10行，共计21行的字数
-    --chars <n>             设置统计字数阈值，默认为50，表示当字数大于等于50时，判断为正文
-    -i,--inline             将网页中的图片使用base64编码转换为inline image嵌入到html中
-    -t,--title              在正文顶部添加文章标题
-    -s,--source             在正文顶部添加网页来源（对于从stdin读取的html无效）
+    -u, --useragent <ua>    设置 user agent（不可与-m参数同时使用）
+    -m, --mobile            模拟移动设备访问网页（不可与-u参数同时使用）
+    -c, --cookie <cookie>   设置 cookie
+        --rows <n>          设置统计字数的行数，默认为10，表示统计当前行及上下10行，共计21行的字数
+        --chars <n>         设置统计字数阈值，默认为50，表示当字数大于等于50时，判断为正文
+    -i, --inline            将网页中的图片使用base64编码转换为inline image嵌入到html中
+    -t, --title             在正文顶部添加文章标题
+    -s, --source            在正文顶部添加网页来源（对于从stdin读取的html无效）
     -n                      不使用统计字数的方式确定正文位置
-    -p,--prettify           将输出的html代码进行格式化以方便阅读代码
+    -p, --prettify          将输出的html代码进行格式化以方便阅读代码
+    -o, --output <filename> 输出到文件，而不是stdout
     -h, --help              显示帮助
-    [url]                   网页url
 
 可以直接抓取网页，或通过stdin读取html：
     htmlarticle.py http://www.example.com/12345.html
@@ -392,7 +390,6 @@ class Article:
 
         htmlstring = """<!DOCTYPE html><html><head><meta charset="utf-8" />{}<title>{}</title></head><body>{}{}</body></html>""".format(base, self.__title, head, htmlstring)
 
-
         if prettify:
             htmlstring = BeautifulSoup(htmlstring).prettify()
 
@@ -415,12 +412,13 @@ if __name__ == '__main__':
     withSource = False
     noCharsStat = False
     prettify = False
+    output = None
     htmlstring = ""
     url = ""
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "u:c:mitsnph", 
-                ["useragent=", "cookie=", "mobile", "rows=", "chars=", "inline", "title", "source", "prettify", "help"])
+        opts, args = getopt.getopt(sys.argv[1:], "u:c:o:mitsnph", 
+                ["useragent=", "cookie=", "mobile", "rows=", "chars=", "inline", "title", "source", "prettify", "output=", "help"])
 
         for i, j in opts:
             if i in ["-h", "--help"]:
@@ -453,10 +451,11 @@ if __name__ == '__main__':
                 noCharsStat = True
             elif i in ["-p", "--prettify"]:
                 prettify = True
+            elif i in ["-o", "--output"]:
+                output = j
         
         if useragent == "":
             useragent = defaultUseragent
-
 
         if len(args) > 0:
             url = args[0]
@@ -474,9 +473,17 @@ if __name__ == '__main__':
         # 从参数读取url，抓取网页
         if len(args) > 0:
             article.fetchPage()
-
         article.preprocess()
-        print(article.article())
+        outputHtml = article.article()
+
+        if output is not None:
+            try:
+                with open(output, mode='wt') as f:
+                    f.write(outputHtml)
+            except IOError as e:
+                sys.exit("{}: {}".format(e.strerror, e.filename))
+        else:
+            print(outputHtml)
 
     except getopt.GetoptError:
         sys.exit("参数输入错误，使用参数-h查看帮助")
