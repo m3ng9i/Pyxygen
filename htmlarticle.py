@@ -14,7 +14,15 @@
    4、运行htmlarticle.py -h查看更多帮助信息
 '''
 
-import re, sys, urllib.request, getopt, html, mimetypes, os.path, urllib.parse, base64
+import re
+import sys
+import os.path
+import getopt
+import html
+import base64
+import mimetypes
+import urllib.request
+import urllib.parse
 from bs4 import BeautifulSoup
 
 def removeHtmlTags(htm, taglist):
@@ -89,7 +97,6 @@ def guessImageType(imgurl):
 def usage():
 
     s = '''Html Article - 网页正文提取程序
-
 分析网页中的html代码，通过统计字符个数判断正文位置并提取正文。输出内容仍然为html代码。
 
 调用方式：
@@ -102,7 +109,7 @@ def usage():
     -m, --mobile            模拟移动设备访问网页（不可与-u参数同时使用）
     -c, --cookie <cookie>   设置 cookie
         --rows <n>          设置统计字数的行数，默认为10，表示统计当前行及上下10行，共计21行的字数
-        --chars <n>         设置统计字数阈值，默认为50，表示当字数大于等于50时，判断为正文
+        --chars <n>         设置统计字数阈值，默认为60，表示当字数大于等于60时，判断为正文
     -i, --inline            将网页中的图片使用base64编码转换为inline image嵌入到html中
     -t, --title             在正文顶部添加文章标题
     -s, --source            在正文顶部添加网页来源（对于从stdin读取的html无效）
@@ -158,6 +165,8 @@ class Article:
                 article = Article(html = html)
                 article.preprocess()
                 print(article.article())
+
+            注意，fetchPage一定要在preprocess之前，article一定要在preprocess之后。
         '''
 
         if rows <= 0:
@@ -243,9 +252,9 @@ class Article:
             except:
                 b64 = ""
 
-            return '''<img{}src="{}"{}>'''.format(match.group(1), b64, match.group(3))
+            return '''<img{} src="{}"{}>'''.format(match.group(1), b64, match.group(3))
 
-        return re.sub(r"""<img([^>]*?) src=['"]([^>'"]*)['"]([^>]*)>""", repl, htm, flags = re.IGNORECASE | re.DOTALL)
+        return re.sub(r"""<img([^>]*?) src=['"]([^>'"]+)['"]([^>]*)>""", repl, htm, flags = re.IGNORECASE | re.DOTALL)
 
 
     def fetchPage(self, url = ""):
@@ -283,6 +292,9 @@ class Article:
                     break
         except AttributeError:
             pass
+        # 如果原网页中没有base字段，仍然生成此字段，href为url，这么做可以保持正文中的相对连接为可用状态
+        if self.__base == "" and self.__url != "":
+            self.__base = self.__url
 
         # ------------------------------------------------------------
         # 生成 self.__body
@@ -295,7 +307,7 @@ class Article:
             body = self.__html
 
         # 去除无用的html标签
-        body = removeHtmlTags(body, ["head", "script", "style", "link", "meta", "iframe", "form", "input", "textarea"])
+        body = removeHtmlTags(body, ["head", "script", "style", "link", "meta", "iframe", "input", "textarea"])
         body = removeHtmlUnpairedTags(body, ["script", "style", "link", "meta", "input"])
 
         # 去除html注释
@@ -388,7 +400,7 @@ class Article:
         if self.__base != "":            
             base = r"""<base href="{}"/>""".format(self.__base)
 
-        htmlstring = """<!DOCTYPE html><html><head><meta charset="utf-8" />{}<title>{}</title></head><body>{}{}</body></html>""".format(base, self.__title, head, htmlstring)
+        htmlstring = """<!DOCTYPE html><html><head>{}<meta charset="utf-8" /><title>{}</title></head><body>{}{}</body></html>""".format(base, self.__title, head, htmlstring)
 
         if prettify:
             htmlstring = BeautifulSoup(htmlstring).prettify()
@@ -432,15 +444,21 @@ if __name__ == '__main__':
             elif i in ["-m", "--mobile"]:
                 useragent = mobileUseragent
             elif i == "--rows":
+                errstr = "--rows参数值只能为正整数"
                 try:
                     rows = int(rows)
                 except ValueError:
-                    pass
+                    sys.exit(errstr)
+                if rows <= 0:
+                    sys.exit(errstr)
             elif i == "--chars":
+                errstr = "--chars参数值只能为正整数"
                 try:
                     chars = int(j)
                 except ValueError:
-                    pass
+                    sys.exit(errstr)
+                if chars <= 0:
+                    sys.exit(errstr)
             elif i in ["-i", "--inline"]:
                 inline = True
             elif i in ["-t", "--title"]:
@@ -454,6 +472,10 @@ if __name__ == '__main__':
             elif i in ["-o", "--output"]:
                 output = j
         
+        if output is not None:
+            if os.path.isdir(output):
+                sys.exit("无法将输出对象设置为目录：{}".format(output))
+
         if useragent == "":
             useragent = defaultUseragent
 
@@ -472,7 +494,14 @@ if __name__ == '__main__':
         
         # 从参数读取url，抓取网页
         if len(args) > 0:
-            article.fetchPage()
+            errstr = "抓取网页时出错："
+            try:
+                article.fetchPage()
+            except urllib.error.URLError as e:
+                sys.exit("{}{}".format(errstr, e.reason))
+            except ValueError as e:
+                sys.exit("{}{}".format(errstr, e))
+
         article.preprocess()
         outputHtml = article.article()
 
