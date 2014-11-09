@@ -25,37 +25,25 @@ import urllib.request
 import urllib.parse
 from bs4 import BeautifulSoup
 
-def removeHtmlTags(htm, taglist):
-    '从给定的html字符串中去掉多个标签及这些标签中包含的内容，标签必须成对出现'
-    for tag in taglist:
-        pattern = r"<{}[^>]*>.*?</{}>".format(tag, tag)
-        htm = re.sub(pattern, "", htm, flags = re.IGNORECASE | re.DOTALL)
-    return htm
-
-
-def removeHtmlUnpairedTags(htm, taglist):
-    '从给定的html字符串中去掉多个没有结束标签的标签，例如<base .../>, <link .../>等'
-    for tag in taglist:
-        pattern = r"<{}[^>]*>".format(tag)
-        htm = re.sub(pattern, "", htm, flags = re.IGNORECASE | re.DOTALL)
-    return htm
-
 
 def removeHtmlComments(htm):
     '将html中的注释去除'
     return re.sub("<!--.*?-->", "", htm, flags = re.DOTALL)
 
 
-def removeEmptyHtmlTags(htm, tags = []):
+def removeEmptyHtmlTags(soap):
     ''' 去除没有内容html标签
         例如<div id="a"></div>就是一个没有内容的标签
+
+        参数soap是一个BeautifulSoup对象，返回值同样为一个BeautifulSoup对象
     '''
-    if len(tags) == 0:
-        tags = ["a", "div", "h1", "h2", "h3", "h4", "h5", "h6", "span", "i"]
-    for tag in tags:
-        pattern = r"<{}[^>]*>[\ \t\r\n]*?</{}>".format(tag, tag)
-        htm = re.sub(pattern, "", htm, flags = re.IGNORECASE | re.DOTALL | re.MULTILINE)
-    return htm
+    remove = []
+    for i in soap.descendants:
+        if len(i) == 0 and i.name not in ['br', 'img']:
+            remove.append(i)
+    for i in remove:
+        i.decompose()
+    return soap
 
 
 def pre2p(s):
@@ -263,7 +251,7 @@ class Article:
         if url != "":
             self.__url = url
         if self.__url == "":
-            raise ValueError("page url is empty.")
+            raise ValueError("url为空")
         self.__html = self.__fetch(self.__url)
 
     
@@ -272,10 +260,10 @@ class Article:
             在调用此方法前，需要确保self.__html不为空，如果self.__html为空，可以使用fetchPage抓取网页
         '''
         if self.__html == "":
-            raise ValueError("page html is empty.")
+            raise ValueError("网页内容为空")
 
         # 生成 self.__soap (BeautifulSoup对象)
-        self.__soap = BeautifulSoup(self.__html)
+        self.__soap = BeautifulSoup(self.__html, "html.parser")
 
         # 生成 self.__title
         try:
@@ -306,24 +294,29 @@ class Article:
         else:
             body = self.__html
 
-        # 去除无用的html标签
-        body = removeHtmlTags(body, ["head", "script", "style", "link", "meta", "iframe", "input", "textarea"])
-        body = removeHtmlUnpairedTags(body, ["script", "style", "link", "meta", "input"])
+        body = BeautifulSoup(body, "html.parser")
 
-        # 去除html注释
-        body = removeHtmlComments(body)
+        # 删除body中位于最外层的标签及标签中的内容
+        for i in body.find_all(['nav', 'footer', 'header'], recursive = False):
+            i.decompose()
+
+        # 删除无用的html标签及标签中的内容
+        for i in body.find_all(['head', 'script', 'style', 'link', 'meta', 'iframe', 'input', 'textarea']):
+            i.decompose()
 
         # 去除内容为空的html标签
-        body = removeEmptyHtmlTags(body).strip()
+        body = removeEmptyHtmlTags(body)
+
+        # 去除无用的属性
+        body = removeHtmlAttributes(body, ["style", "class", "id", "target"])
+
+        # 去除html注释
+        body = removeHtmlComments(str(body))
 
         # pre标签转换为p标签
         body = pre2p(body)
 
-        # 去除无用的属性
-        body = BeautifulSoup(body)
-        body = removeHtmlAttributes(body, ["style", "class", "id", "target"])
-
-        self.__body = str(body)
+        self.__body = body
 
 
     def article(self, *, iimage = None, noCharsStat = None, withTitle = None, withSource = None, prettify = None):
@@ -339,7 +332,7 @@ class Article:
 
         body = self.__body
         if body == "":
-            raise ValueError("html body is empty.")
+            raise ValueError("网页body部分为空")
 
         if iimage is None:
             iimage = self.__iimage
@@ -359,7 +352,7 @@ class Article:
             # 遍历body中的每一行，去掉html，去掉前后的空格，计算每一行中的字符个数，保存到linechars
             linechars = []
             for line in bodylines:
-                linechars.append(len(BeautifulSoup(line).get_text().strip()))
+                linechars.append(len(BeautifulSoup(line, "html.parser").get_text().strip()))
 
             # 遍历每一行，统计当前行+上rows行+下rows行中，所有的字符个数，保存到linestat
             # linestat中大于chars的单元的序号，就是属于正文的内容对应在bodylines的序号
@@ -378,15 +371,21 @@ class Article:
                     htmlstring.append(bodylines[n])
 
                 n = n + 1
+            htmlstring = ''.join(htmlstring)
         # 不进行字数统计
         else:
             htmlstring = body
 
-        htmlstring = removeEmptyHtmlTags(''.join(htmlstring))
-
         # 完成body部分html代码的获取，下面开始将img处理为inline模式
         if iimage:
             htmlstring = self.__image2inline(htmlstring)
+
+        soap = removeEmptyHtmlTags(BeautifulSoup(htmlstring, "html.parser"))
+
+        if prettify:
+            htmlstring = soap.prettify()
+        else:
+            htmlstring = str(soap)
 
         # 在正文顶部添加标题和链接
 
@@ -401,9 +400,6 @@ class Article:
             base = r"""<base href="{}"/>""".format(self.__base)
 
         htmlstring = """<!DOCTYPE html><html><head>{}<meta charset="utf-8" /><title>{}</title></head><body>{}{}</body></html>""".format(base, self.__title, head, htmlstring)
-
-        if prettify:
-            htmlstring = BeautifulSoup(htmlstring).prettify()
 
         return htmlstring
 
