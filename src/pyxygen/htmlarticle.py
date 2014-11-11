@@ -100,7 +100,7 @@ def usage():
         --chars <n>         设置统计字数阈值，默认为60，表示当字数大于等于60时，判断为正文
     -i, --inline            将网页中的图片使用base64编码转换为inline image嵌入到html中
     -t, --title             在正文顶部添加文章标题
-    -s, --source            在正文顶部添加网页来源（对于从stdin读取的html无效）
+    -s, --source            在正文顶部添加原文地址（对于从stdin读取的html无效）
     -n                      不使用统计字数的方式确定正文位置
     -p, --prettify          将输出的html代码进行格式化以方便阅读代码
     -o, --output <filename> 输出到文件，而不是stdout
@@ -284,7 +284,6 @@ class Article:
         if self.__base == "" and self.__url != "":
             self.__base = self.__url
 
-        # ------------------------------------------------------------
         # 生成 self.__body
 
         # 从html中提取body标签中的所有内容（不含body标签本身），如果没有获取到，将其设置为self.__html的内容
@@ -387,11 +386,15 @@ class Article:
         else:
             htmlstring = str(soap)
 
+        title = self.__title
+        if title == "":
+            title = "无标题"
+
         # 在正文顶部添加标题和链接
 
         head = ""
         if withTitle:
-            head = "<h1>{}</h1>".format(self.__title)
+            head = "<h1>{}</h1>".format(title)
         if withSource and len(self.__url) > 0:
             head = head + "<p>原文地址：<a href='{}'>{}</a></p>".format(args[0], args[0])
 
@@ -399,7 +402,8 @@ class Article:
         if self.__base != "":            
             base = r"""<base href="{}"/>""".format(self.__base)
 
-        htmlstring = """<!DOCTYPE html><html><head>{}<meta charset="utf-8" /><title>{}</title></head><body>{}{}</body></html>""".format(base, self.__title, head, htmlstring)
+        htmlstring = (r"""<!DOCTYPE html><html><head>{}<meta charset="utf-8" />"""
+            r"""<title>{}</title></head><body>{}{}</body></html>""".format(base, title, head, htmlstring)
 
         return htmlstring
 
