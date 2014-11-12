@@ -396,24 +396,25 @@ class Article:
         if withTitle:
             head = "<h1>{}</h1>".format(title)
         if withSource and len(self.__url) > 0:
-            head = head + "<p>原文地址：<a href='{}'>{}</a></p>".format(args[0], args[0])
+            #head = head + "<p>原文地址：<a href='{}'>{}</a></p>".format(args[0], args[0])
+            head = head + "<p>原文地址：<a href='{}'>{}</a></p>".format(self.__url, self.__url)
 
         base = ""
         if self.__base != "":            
             base = r"""<base href="{}"/>""".format(self.__base)
 
         htmlstring = (r"""<!DOCTYPE html><html><head>{}<meta charset="utf-8" />"""
-            r"""<title>{}</title></head><body>{}{}</body></html>""".format(base, title, head, htmlstring)
+            r"""<title>{}</title></head><body>{}{}</body></html>""").format(base, title, head, htmlstring)
 
         return htmlstring
 
 
-if __name__ == '__main__':  
+# 默认的user agent
+defaultUseragent = "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/38.0.2125.111 Safari/537.36"
+# 移动设备的user agent
+mobileUseragent = "Opera/9.80 (Android; Opera Mini/7.6.35766/35.4970; U; zh) Presto/2.8.119 Version/11.10"
 
-    # 默认的user agent
-    defaultUseragent = "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/38.0.2125.111 Safari/537.36"
-    # 移动设备的user agent
-    mobileUseragent = "Opera/9.80 (Android; Opera Mini/7.6.35766/35.4970; U; zh) Presto/2.8.119 Version/11.10"
+if __name__ == '__main__':
 
     useragent = ""
     cookie = ""

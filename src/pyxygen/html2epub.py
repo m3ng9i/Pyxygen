@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-#import htmlarticle
 
 import zipfile
 import os
@@ -10,11 +9,19 @@ import mimetypes
 import hashlib
 import time
 import shutil
+import sys
+import getopt
 from bs4 import BeautifulSoup
+import htmlarticle
 
-''' 本程序依赖第三方模块BeautifulSoup，此模块的安装方法请参考如下地址：
-    http://www.crummy.com/software/BeautifulSoup/bs4/doc/
+''' 本程序依赖第三方模块：
+    BeautifulSoup：此模块的安装方法请参考如下地址：http://www.crummy.com/software/BeautifulSoup/bs4/doc/
+    htmlarticle：见htmlarticle.py
 '''
+
+class CreateEpubError(Exception):
+    pass
+
 
 def mediaType(filename):
     '根据文件名获取文件的mediatype'
@@ -264,12 +271,12 @@ class CreateEpub():
                     z.write(os.path.join(curdir, f))
 
 
-    def __init__(self, srcfiles, destfile, name):
+    def __init__(self, srcfiles, destfile, name = ""):
         ''' 参数说明：
             srcfiles    要添加到epub中的文件名称（列表），文件顺序决定了在epub中的顺序
                         所有文件的文件名(basename)不能相同
             destfile    生成的电子书路径及文件名        
-            name        epub电子书名称
+            name        epub电子书名称，如果为空字符串，则自动生成电子书名
 
             可能会抛出的异常：
             FileNotFoundError   要添加到epub的文件不存在，或者要添加的是一个目录而不是文件
@@ -279,6 +286,9 @@ class CreateEpub():
         self.__srcfiles = [] # 在临时目录/OEBPS/content目录中的文件的文件名
         self.__destfile = destfile
         self.__name = name
+
+        if len(srcfiles) == 0:
+            raise ValueError("参数srcfiles值为空")
 
         self.__tmp = self.__createTmpDir()    # 创建临时目录
         self.__tmpdir = self.__tmp.name       # 临时目录路径
@@ -293,8 +303,22 @@ class CreateEpub():
         if self.__hasDuplicateFiles():
             raise ValueError("srcfiles中存在文件名重复的条目")
 
+        # 自动生成电子书名，同时检测是否缺少html文件
+        hasHtml = False
+        if self.__name.strip() == "":
+            for src in self.__srcfiles:
+                path = os.path.join(self.__tmpdir, "OEBPS", "content", src)
+                if mediaType(path) == "application/xhtml+xml":
+                    hasHtml = True
+                    self.__name = getTitle(path)
+        if hasHtml is False:
+            raise ValueError("srcfiles中并为提供html文件")
+
         # 生成bookid
         self.__bookid = self.__createBookId()
+        # 由于getTitle()可能仍然返回空字符串，所以这里还需要判断一下
+        if self.__name.strip() == "":
+            self.__name = "epub电子书 {}".format(self.__bookid[:5])
             
         # 生成OEBPS/content.opf文件
         self.__createFileContentOpf()
@@ -304,4 +328,179 @@ class CreateEpub():
 
         # 打包为epub
         self.__createZip()
+
+
+def usage():
+    s = r'''HTML to EPUB - 将指定的URL或HTML文件转换为EPUB电子书
+
+本程序创建EPUB电子书的3种方式：
+1. 将本机某个目录中的所有文件转换为EPUB，目录中需要有HTML文件（使用-p参数）
+2. 提供若干个URL，抓取页面，转换为EPUB（使用-u参数）
+3. 将本机若干个文件转换为EPUB，文件中至少要有一个HTML文件（使用-f参数）
+
+调用方式：
+    html2epub.py -o <filename> [-n <name>] [--ua <useragent>] -p <path> 
+    html2epub.py -o <filename> [-n <name>] [--ua <useragent>] -u <url> [url2 ...] 
+    html2epub.py -o <filename> [-n <name>] [--ua <useragent>] -f <file> [file2 ...] 
+    html2epub.py -h
+    
+参数说明：
+    -o, --output <filename>         设置epub输出路径和文件名
+    -n, --name <name>               设置电子书名，如果不提供，则以第一个html文件中的title为电子书名，
+        --ua <useragent>            设置抓取网页时的useragent                                    
+    -p, --path <path>               设置包含html及相关代码的目录
+    -u, --url <url> [url2 ...]      指定一个或多个url
+    -f, --file <file> [file2 ...]   指定一个或多个本地文件
+    -h, --help                      显示帮助
+
+注意：
+    -p、-u、-f参数不能同时使用
+    
+举例：
+    将/tmp/htmlfiles目录中的文件创建为电子书
+    html2epub.py -o /tmp/book.epub -n 电子书名称 -p /tmp/htmlfiles
+
+    将两个网页作为内容创建为电子书
+    html2epub.py -o /tmp/book.epub -n 电子书名称 -u http://example.com/1 http://example.com/1
+
+    将两个html文件作为内容创建为电子书，电子书名称为与第一个html文件中的title字段相同
+    html2epub.py -o /tmp/book.epub -f /tmp/1.html /tmp/2.html'''
+
+    print(s)
+
+
+def fetchFiles(src, srctype, useragent):
+    ''' 获取要添加到epub中的文件
+
+        参数说明：
+        src         具体含义根据srctype不同而不同
+        srctype     值可以为path、file或url，类型为字符串或列表
+                    path：表示src为一个本地目录，将此目录中所有的文件添加到epub
+                    file：表示src为一个或多个要添加到epub中的文件路径
+                    url：表示src为一个或多个要添加到epub中的url
+        useragent   user agent                    
+
+        可能抛出的异常
+        TypeError               参数src类型不对
+        ValueError              参数srctype值不对；网址格式不对
+        urllib.error.URLError   抓取网页时出错
+        IOError                 写临时文件时出错
+
+        返回值：(a, b)
+        a   列表，包含要添加到epub文件中的所有文件的路径
+        b   临时目录对象，如果不返回这个值，函数返回后，临时目录会被自动销毁
+    '''
+    result = []
+
+    if srctype == "path":
+        if isinstance(src, str):
+            pass
+        elif isinstance(src, list):
+            src = src[0]
+        else:
+            raise TypeError("当srctype为path时，src只能为字符串或列表。")
+
+        for curdir, _, files in os.walk(src):
+            for filename in files:
+                path = os.path.abspath(os.path.join(curdir, filename))
+                result.append(path)
+
+    elif srctype == "file":
+
+        # 可能有的文件不存在
+        if isinstance(src, str):
+            result.append(src)
+        elif isinstance(src, list):
+            for s in src:
+                result.append(s)
+        else:
+            raise TypeError("当srctype为file时，src只能为字符串或列表。")
+
+    elif srctype == "url":
+        if isinstance(src, str):
+            src = [src]
+        elif isinstance(src, list):
+            pass
+        else:
+            raise TypeError("当srctype为url时，src只能为字符串或列表。")
+
+
+        tmp = tempfile.TemporaryDirectory()
+        n = 1 # html文件计数
+
+        # 遍历src列表，抓取所有的html页面，图片已内置到网页中
+        # 可能发生的异常：urllib.error.URLError、ValueError、IOError
+        for s in src:
+            article = htmlarticle.Article(url = s, useragent = useragent)
+            article.fetchPage()
+            article.preprocess()
+            html = article.article()
+
+            path = os.path.join(tmp.name, "{}.html".format(n))
+            with open(path, 'wt') as f:
+                f.write(html)
+                result.append(path)
+            n += 1                
+    else:
+        raise ValueError("参数srctype只能为path、file或url")
+
+    # 必须把tmp传出去，否则临时目录在函数返回后就自动销毁了
+    return (result, tmp)
+
+
+if __name__ == '__main__':
+
+    srctype = ""
+    src = []
+    output = ""
+    name = ""
+    useragent = htmlarticle.mobileUseragent
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "n:po:ufh", ["name=", "ua=", "path", "output=", "url", "file", "help"]) 
+
+        n = 0 # 记录p、u、f参数出现的次数
+        for i, j in opts:
+            if i in ['-h', '--help']:
+                usage()
+                sys.exit()
+
+            if i in ['-n', '--name']:
+                name = j
+            elif i == "--ua":
+                useragent = j
+            elif i in ['-p', '--path']:
+                srctype = "path"
+                n += 1
+            elif i in ['-o', '--output']:
+                output = j
+            elif i in ['-u', '--url']:
+                srctype = "url"
+                n += 1
+            elif i in ['-f', '--file']:
+                srctype = "file"
+                n += 1
+            src = args
+
+        if len(src) == 0:
+            sys.exit("参数输入错误。使用-h查看帮助。")
+        if n != 1:
+            sys.exit("参数输入错误：必须给出-p、-u或-f参数，且只能给出一个。使用-h查看帮助。")
+        if output == "":
+            sys.exit("参数输入错误：缺少-o参数。使用-h查看帮助。")
+
+    except getopt.GetoptError:
+        sys.exit("参数输入错误，使用参数-h查看帮助")
+
+    try:
+        srcfiles, _ = fetchFiles(src, srctype, useragent)
+        CreateEpub(srcfiles, output, name)
+    except KeyboardInterrupt:
+        sys.exit()
+    except Exception as e:
+        sys.exit("创建epub文件时出错：{}".format(e))
+
+    print("成功生成epub：{}".format(os.path.abspath(output)))
+                    
+
 
