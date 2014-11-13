@@ -303,6 +303,10 @@ class Article:
         for i in body.find_all(['head', 'script', 'style', 'link', 'meta', 'iframe', 'input', 'textarea']):
             i.decompose()
 
+        # unwarp部分标签
+        for i in body.find_all(['noscript']):
+            i.unwrap()
+
         # 去除内容为空的html标签
         body = removeEmptyHtmlTags(body)
 

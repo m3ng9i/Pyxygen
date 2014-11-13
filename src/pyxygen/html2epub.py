@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 
+'''HTML to EPUB - 将指定的URL或HTML文件转换为EPUB电子书
+
+本程序可以将网页转换为epub2格式的电子书，生成的epub文件可以在软件“多看阅读”上打开，其他的软件没有测试过，有可能无法正常显示。
+
+本程序依赖第三方模块：
+    1. BeautifulSoup：此模块的安装方法请参考如下地址：http://www.crummy.com/software/BeautifulSoup/bs4/doc/
+    2. htmlarticle：见htmlarticle.py'''
+
 
 import zipfile
 import os
@@ -13,14 +21,6 @@ import sys
 import getopt
 from bs4 import BeautifulSoup
 import htmlarticle
-
-''' 本程序依赖第三方模块：
-    BeautifulSoup：此模块的安装方法请参考如下地址：http://www.crummy.com/software/BeautifulSoup/bs4/doc/
-    htmlarticle：见htmlarticle.py
-'''
-
-class CreateEpubError(Exception):
-    pass
 
 
 def mediaType(filename):
@@ -153,11 +153,10 @@ class CreateEpub():
         # 生成metadata节点
         metadata = (r"""<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">"""
             r"""<dc:title>{}</dc:title><dc:creator>pyxygen:html2epub</dc:creator>"""
-            r"""<dc:date opf:event="publication">{}</dc:date><dc:identifier id="BookID">{}</dc:identifier>"""
+            r"""<dc:date opf:event="publication">{}</dc:date><dc:identifier id="bookid">{}</dc:identifier>"""
             r"""<dc:language>zh-cn</dc:language></metadata>""").format(self.__name, time.strftime("%Y-%m-%d"), self.__bookid)
 
         # 生成manifest节点，此节点包含所有应添加到epub中的文件，再加上toc.ncx
-        # TODO 将toc.ncx的media-type修改为 text/xml看生成的epub能否使用
         item = []
         item.append(r"""<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>""")
         for i in self.__srcfiles:
@@ -175,8 +174,8 @@ class CreateEpub():
 
         # 生成这个content.opf文件的内容
         content = (r"""<?xml version="1.0" encoding="UTF-8" ?>"""
-            r"""<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="{}" version="2.0">"""
-            r"""{}{}{}</package>""").format(self.__bookid, metadata, manifest, spine)
+            r"""<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="2.0">"""
+            r"""{}{}{}</package>""").format(metadata, manifest, spine)
 
         # 将文件内容写入content.opf
         with open(os.path.join(self.__tmpdir, "OEBPS", "content.opf"), 'wt') as f:
@@ -260,7 +259,6 @@ class CreateEpub():
                     continue
 
                 for f in files:
-                    # TODO del: if f.startswith('.') or f == "mimetype":
                     # 略过点开头的文件
                     if f.startswith('.'):
                         continue
@@ -311,8 +309,8 @@ class CreateEpub():
                 if mediaType(path) == "application/xhtml+xml":
                     hasHtml = True
                     self.__name = getTitle(path)
-        if hasHtml is False:
-            raise ValueError("srcfiles中并为提供html文件")
+            if hasHtml is False:
+                raise ValueError("srcfiles中并未提供html文件")
 
         # 生成bookid
         self.__bookid = self.__createBookId()
@@ -333,7 +331,7 @@ class CreateEpub():
 def usage():
     s = r'''HTML to EPUB - 将指定的URL或HTML文件转换为EPUB电子书
 
-本程序创建EPUB电子书的3种方式：
+创建EPUB电子书的3种方式：
 1. 将本机某个目录中的所有文件转换为EPUB，目录中需要有HTML文件（使用-p参数）
 2. 提供若干个URL，抓取页面，转换为EPUB（使用-u参数）
 3. 将本机若干个文件转换为EPUB，文件中至少要有一个HTML文件（使用-f参数）
@@ -347,7 +345,7 @@ def usage():
 参数说明：
     -o, --output <filename>         设置epub输出路径和文件名
     -n, --name <name>               设置电子书名，如果不提供，则以第一个html文件中的title为电子书名，
-        --ua <useragent>            设置抓取网页时的useragent                                    
+        --ua <useragent>            设置抓取网页时的useragent
     -p, --path <path>               设置包含html及相关代码的目录
     -u, --url <url> [url2 ...]      指定一个或多个url
     -f, --file <file> [file2 ...]   指定一个或多个本地文件
@@ -378,7 +376,7 @@ def fetchFiles(src, srctype, useragent):
                     path：表示src为一个本地目录，将此目录中所有的文件添加到epub
                     file：表示src为一个或多个要添加到epub中的文件路径
                     url：表示src为一个或多个要添加到epub中的url
-        useragent   user agent                    
+        useragent   user agent
 
         可能抛出的异常
         TypeError               参数src类型不对
@@ -391,6 +389,7 @@ def fetchFiles(src, srctype, useragent):
         b   临时目录对象，如果不返回这个值，函数返回后，临时目录会被自动销毁
     '''
     result = []
+    tmp = None # 临时目录对象
 
     if srctype == "path":
         if isinstance(src, str):
@@ -501,6 +500,4 @@ if __name__ == '__main__':
         sys.exit("创建epub文件时出错：{}".format(e))
 
     print("成功生成epub：{}".format(os.path.abspath(output)))
-                    
-
 
