@@ -1,6 +1,8 @@
 Pyxygen
 ==============
 
+Pyxygen is a collection of my CLI programs written in python3.
+
 Pyxygen 是我用 python3 写的一些命令行程序的合集。点击下面的文件名查看程序代码，点击说明跳转到程序详细介绍页面。
 
 文件名                                        | 说明
