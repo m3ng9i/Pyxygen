@@ -46,7 +46,7 @@ HTML to EPUB - 将指定的URL或HTML文件转换为EPUB电子书
 将/tmp/htmlfiles目录中的文件创建为电子书
 
 ```shell
-    html2epub.py -o /tmp/book.epub -n 电子书名称 -p /tmp/htmlfiles
+html2epub.py -o /tmp/book.epub -n 电子书名称 -p /tmp/htmlfiles
 ```
 
 将两个网页作为内容创建为电子书

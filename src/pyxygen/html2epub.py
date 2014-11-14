@@ -491,6 +491,8 @@ if __name__ == '__main__':
     except getopt.GetoptError:
         sys.exit("参数输入错误，使用参数-h查看帮助")
 
+    output = os.path.abspath(output)
+
     try:
         srcfiles, _ = fetchFiles(src, srctype, useragent)
         CreateEpub(srcfiles, output, name)
@@ -499,5 +501,5 @@ if __name__ == '__main__':
     except Exception as e:
         sys.exit("创建epub文件时出错：{}".format(e))
 
-    print("成功生成epub：{}".format(os.path.abspath(output)))
+    print("成功生成epub：{}".format(output))
 
