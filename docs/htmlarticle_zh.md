@@ -33,7 +33,8 @@ Html Article - 网页正文提取工具
     -s, --source            在正文顶部添加原文地址（对于从stdin读取的html无效）
     -n                      不使用统计字数的方式确定正文位置
     -p, --prettify          将输出的html代码进行格式化以方便阅读代码
-    -o, --output <filename> 输出到文件，而不是stdout
+    -o, --output <filename> 输出到文件，而不是stdout，不可与-a参数同时使用
+    -a, --autonaming        输出文件到当前目录，文件名根据网页title进行设置，不可与-o参数同时使用
     -h, --help              显示帮助
 
 ### 例子
@@ -54,6 +55,12 @@ htmlarticle.py http://example.com/12345.html > out.html
 
 ```shell
 htmlarticle.py -o out.html http://example.com/12345.html
+```
+
+提取网页中的正文，输出到文件，文件名根据网页标题生成：
+
+```shell
+htmlarticle.py -a http://example.com/12345.html
 ```
 
 模拟移动设备访问网页，提取正文，抓取网页中的图片，转换为base64编码内嵌到网页中：

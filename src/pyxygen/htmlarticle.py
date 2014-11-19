@@ -102,7 +102,8 @@ def usage():
     -s, --source            在正文顶部添加原文地址（对于从stdin读取的html无效）
     -n                      不使用统计字数的方式确定正文位置
     -p, --prettify          将输出的html代码进行格式化以方便阅读代码
-    -o, --output <filename> 输出到文件，而不是stdout
+    -o, --output <filename> 输出到文件，而不是stdout，不可与-a参数同时使用
+    -a, --autonaming        输出文件到当前目录，文件名根据网页title进行设置，不可与-o参数同时使用
     -h, --help              显示帮助
 
 可以直接抓取网页，或通过stdin读取html：
@@ -110,6 +111,39 @@ def usage():
     cat example.html | htmlarticle.py'''
 
     print(s)
+
+
+def createFilename(title):
+    '根据title生成文件名'
+
+    # 去除特殊符号
+    for i in r'''!@#$%^&*+=|<>?"':;[]{} ''':
+        title = title.replace(i, '')
+    title = title.replace('\t', '')
+
+    # 斜杠、横杠修改为下划线
+    title = title.replace('/', '_')
+    title = title.replace('\\', '_')
+    title = title.replace('_', '_')
+
+    # 去除开头结尾的点
+    title = title.strip('.')
+
+    if title == "":
+        title = "未命名"
+
+    basename = "{}.html".format(title)
+
+    # 检测当前目录下是否存在同名文件，如果有，则进行修改
+    n = 0
+    while True:
+        if os.path.exists(basename):
+            n += 1
+            basename = "{}{}.html".format(title, n)
+        else:
+            break
+
+    return basename
 
 
 class Article:
@@ -321,6 +355,10 @@ class Article:
         self.__body = body
 
 
+    def getTitle(self):
+        return self.__title
+
+
     def article(self, *, iimage = None, noCharsStat = None, withTitle = None, withSource = None, prettify = None):
         ''' 生成正文内容，返回html代码
             
@@ -429,12 +467,14 @@ if __name__ == '__main__':
     noCharsStat = False
     prettify = False
     output = None
+    autonaming = False
     htmlstring = ""
     url = ""
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "u:c:o:mitsnph", 
-                ["useragent=", "cookie=", "mobile", "rows=", "chars=", "inline", "title", "source", "prettify", "output=", "help"])
+        opts, args = getopt.getopt(sys.argv[1:], "u:c:o:mitsnpah", 
+                [   "useragent=", "cookie=", "mobile", "rows=", "chars=", "inline", "title", 
+                    "source", "prettify", "output=", "autonaming", "help"])
 
         for i, j in opts:
             if i in ["-h", "--help"]:
@@ -475,6 +515,11 @@ if __name__ == '__main__':
                 prettify = True
             elif i in ["-o", "--output"]:
                 output = j
+            elif i in ["-a", "--autonaming"]:
+                autonaming = True
+
+        if autonaming is True and output is not None:
+            sys.exit("-o/--output参数与-a/--autonaming参数不能同时使用")
         
         if output is not None:
             if os.path.isdir(output):
@@ -509,10 +554,15 @@ if __name__ == '__main__':
         article.preprocess()
         outputHtml = article.article()
 
+        # 如果有-a参数，输出到文件（当前目录），文件名根据网页title生成
+        if autonaming:
+            output = createFilename(article.getTitle())
+
         if output is not None:
             try:
                 with open(output, mode='wt') as f:
                     f.write(outputHtml)
+                print("生成文件：{}".format(output))
             except IOError as e:
                 sys.exit("{}: {}".format(e.strerror, e.filename))
         else:
