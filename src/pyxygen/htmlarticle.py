@@ -126,8 +126,8 @@ def createFilename(title):
     title = title.replace('\\', '_')
     title = title.replace('_', '_')
 
-    # 去除开头结尾的点
-    title = title.strip('.')
+    # 去除开头结尾的点、空格、换行、制表符
+    title = title.strip('. \r\n\t')
 
     if title == "":
         title = "未命名"
