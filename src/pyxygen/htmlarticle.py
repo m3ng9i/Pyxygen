@@ -117,17 +117,17 @@ def createFilename(title):
     '根据title生成文件名'
 
     # 去除特殊符号
-    for i in r'''!@#$%^&*+=|<>?"':;[]{} ''':
-        title = title.replace(i, '')
-    title = title.replace('\t', '')
+    signs = r'''!@#$%^&*+=|<>?"':;[]{}'''+'\r\n'
+    title = title.translate(''.maketrans(signs, ' '*len(signs)))
 
-    # 斜杠、横杠修改为下划线
-    title = title.replace('/', '_')
-    title = title.replace('\\', '_')
-    title = title.replace('_', '_')
+    # 空格、正反斜杠、制表符修改为下划线
+    title = title.translate(''.maketrans(' /\\\t', '_'*4))
 
-    # 去除开头结尾的点、空格、换行、制表符
-    title = title.strip('. \r\n\t')
+    # 2个以上的下划线合并为1个
+    title = re.sub('_{2,}', '_', title)
+
+    # 去除开头结尾的下划线、点
+    title = title.strip('_.')
 
     if title == "":
         title = "未命名"
