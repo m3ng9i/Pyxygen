@@ -129,10 +129,8 @@ class CreateEpub():
             True    有重复的项目
             False   没有重复的项目
         '''
-        l = self.__srcfiles[:]
-        l.sort()
         last = None
-        for i in l:
+        for i in sorted(self.__srcfiles):
             if i == last:
                 return True
             last = i
