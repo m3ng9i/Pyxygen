@@ -490,7 +490,7 @@ if __name__ == '__main__':
             elif i == "--rows":
                 errstr = "--rows参数值只能为正整数"
                 try:
-                    rows = int(rows)
+                    rows = int(j)
                 except ValueError:
                     sys.exit(errstr)
                 if rows <= 0:
