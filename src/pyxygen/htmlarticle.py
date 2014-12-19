@@ -222,6 +222,10 @@ class Article:
                 referer     进行抓取时使用的referer，如果为空字符串，默认将url设置为referer
         '''
 
+        # 如果url包含汉字，可以将其转义
+        safe = '''%/:=&?~#+!$,;'@()*[]'''
+        url = urllib.parse.quote(url, safe=safe)
+
         headers = dict()
 
         if self.__useragent != "":
@@ -229,7 +233,8 @@ class Article:
         if self.__cookie != "":
             headers['Cookie'] = self.__cookie
         if referer != "":
-            headers['Referer'] = referer
+            # 如果referer包含汉字，可以将其转义
+            headers['Referer'] = urllib.parse.quote(referer, safe=safe)
         else:
             headers['Referer'] = url
 
