@@ -11,7 +11,9 @@
    1、将此文件放到任意目录，例如~/bin，确保文件有执行权限，如果没有，请用 chmod u+x htmlarticle.py 添加执行权限
    2、确保文件所在目录位于环境变量PATH中
    3、调用方法举例：htmlarticle.py http://www.example.com/12345.html
-   4、运行htmlarticle.py -h查看更多帮助信息'''
+   4、运行htmlarticle.py -h查看更多帮助信息
+
+   更多 Pyxygen 程序请访问：https://github.com/m3ng9i/Pyxygen'''
 
 import re
 import sys

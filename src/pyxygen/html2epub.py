@@ -6,7 +6,9 @@
 
 本程序依赖第三方模块：
     1. BeautifulSoup：此模块的安装方法请参考如下地址：http://www.crummy.com/software/BeautifulSoup/bs4/doc/
-    2. htmlarticle：见htmlarticle.py'''
+    2. htmlarticle：见htmlarticle.py
+
+更多 Pyxygen 程序请访问：https://github.com/m3ng9i/Pyxygen'''
 
 
 import zipfile
